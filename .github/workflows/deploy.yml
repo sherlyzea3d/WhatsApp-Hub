@@ -1,0 +1,127 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Test and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/var/www/whatsapp-hub' }}
+      SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate source
+        run: npm run check
+
+      - name: Create deployment archive
+        shell: bash
+        run: |
+          tar \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.env' \
+            --exclude='node_modules' \
+            --exclude='deploy.tar.gz' \
+            -czf deploy.tar.gz .
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$SSH_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload release
+        shell: bash
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          scp \
+            -P "$SSH_PORT" \
+            -i ~/.ssh/deploy_key \
+            deploy.tar.gz \
+            "$VPS_USER@$VPS_HOST:/tmp/whatsapp-hub-$GITHUB_SHA.tar.gz"
+
+      - name: Activate release
+        shell: bash
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh \
+            -p "$SSH_PORT" \
+            -i ~/.ssh/deploy_key \
+            "$VPS_USER@$VPS_HOST" \
+            bash -s -- "$DEPLOY_PATH" "$GITHUB_SHA" <<'REMOTE_SCRIPT'
+          set -Eeuo pipefail
+
+          deploy_path="$1"
+          release_id="$2"
+          archive="/tmp/whatsapp-hub-${release_id}.tar.gz"
+          release_path="${deploy_path}/releases/${release_id}"
+          shared_path="${deploy_path}/shared"
+
+          command -v node >/dev/null || { echo 'Node.js is not installed on the server.' >&2; exit 1; }
+          command -v npm >/dev/null || { echo 'npm is not installed on the server.' >&2; exit 1; }
+          command -v pm2 >/dev/null || { echo 'PM2 is not installed. Run: sudo npm install -g pm2' >&2; exit 1; }
+
+          mkdir -p "$release_path" "$shared_path"
+
+          if [ ! -f "$shared_path/.env" ]; then
+            echo "Missing $shared_path/.env. Create it from .env.example before deploying." >&2
+            exit 1
+          fi
+
+          tar -xzf "$archive" -C "$release_path"
+          rm -f "$archive"
+          ln -s "$shared_path/.env" "$release_path/.env"
+
+          cd "$release_path"
+          npm ci --omit=dev --ignore-scripts
+
+          ln -sfn "$release_path" "${deploy_path}/current.new"
+          mv -Tf "${deploy_path}/current.new" "${deploy_path}/current"
+
+          cd "${deploy_path}/current"
+          pm2 delete whatsapp-hub >/dev/null 2>&1 || true
+          pm2 start npm --name whatsapp-hub -- start
+          pm2 save
+
+          # Keep the five newest releases.
+          find "${deploy_path}/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+            | sort -nr \
+            | tail -n +6 \
+            | cut -d' ' -f2- \
+            | xargs -r rm -rf --
+          REMOTE_SCRIPT
