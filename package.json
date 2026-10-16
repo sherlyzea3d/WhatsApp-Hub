@@ -1,0 +1,37 @@
+{
+  "name": "relay-whatsapp-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env server.js",
+    "dev": "node dev.mjs",
+    "check": "node --check server.js && node --check storage.mjs && node --check workspace-model.mjs && node --check app.js && node --check live.js && node --check background.mjs && node --check dev.mjs && node --check dev-resume.mjs && node --check reconnect-policy.mjs && node --check startup-task.mjs && node --check contact-sync.mjs && node --check integrations.mjs && node --check integration-config.mjs && node --check employees.mjs && node --check voice.mjs && node --check voice-client.js && node --check voice-tunnel.mjs && node --check crm-contacts.mjs && node --check unified-conversations.mjs && node --check delete-contact.mjs && node --check scroll-state.mjs && node --check whatsapp-content.mjs && node --check whatsapp-render.mjs && node --check whatsapp-polls.mjs && node --check poll-voting.mjs && node --check ghl-callback.mjs && node --check ghl-callback-service.mjs && node --check ghl-tunnel.mjs",
+    "test": "node modal.test.mjs && node management-tables.test.mjs && node integrations.test.mjs && node employees-voice.test.mjs && node unified-conversations.test.mjs && node scroll-state.test.mjs && node whatsapp-media.test.mjs && node whatsapp-polls.test.mjs && node poll-voting.test.mjs && node ghl-callback.test.mjs",
+    "test:database": "node --env-file=.env delete-account.test.mjs && node --env-file=.env contact-names.test.mjs && node --env-file=.env delete-contact.test.mjs && node --env-file=.env whatsapp-storage.test.mjs && node --env-file=.env whatsapp-polls-storage.test.mjs",
+    "background:start": "node background.mjs start",
+    "background:stop": "node background.mjs stop",
+    "background:status": "node background.mjs status",
+    "background:install": "node startup-task.mjs install && node background.mjs start",
+    "background:uninstall": "node startup-task.mjs uninstall",
+    "background:startup-status": "node startup-task.mjs status",
+    "voice:tunnel:start": "node voice-tunnel.mjs start",
+    "voice:tunnel:stop": "node voice-tunnel.mjs stop",
+    "voice:tunnel:status": "node voice-tunnel.mjs status",
+    "ghl:tunnel:start": "node ghl-tunnel.mjs start",
+    "ghl:tunnel:stop": "node ghl-tunnel.mjs stop",
+    "ghl:tunnel:status": "node ghl-tunnel.mjs status"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^7.0.1",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "express": "^5.1.0",
+    "googleapis": "^185.0.0",
+    "imapflow": "^2.4.0",
+    "mailparser": "^3.9.38",
+    "nodemailer": "^10.1.0",
+    "pg": "^8.16.3",
+    "pino": "^9.9.0",
+    "plivo": "4.75.1",
+    "qrcode": "^1.5.4"
+  }
+}

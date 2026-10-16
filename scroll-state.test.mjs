@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';import {captureScrollState,restoreScrollState} from './scroll-state.mjs';
+let rowPosition=290;const row={hasAttribute:k=>k==='data-select-conversation',getAttribute:()=> 'stable-contact',getBoundingClientRect:()=>({top:rowPosition-list.scrollTop,bottom:rowPosition-list.scrollTop+50})};
+const list={id:'list',scrollTop:250,scrollLeft:12,scrollHeight:1000,clientHeight:200,getBoundingClientRect:()=>({top:0,bottom:200}),querySelectorAll:()=>[row]};
+const thread={id:'thread-messages',scrollTop:90,scrollLeft:0,scrollHeight:700,clientHeight:200,querySelectorAll:()=>[]};
+let focusOptions;const focus={id:'focus',selectionStart:2,selectionEnd:4,focus:o=>focusOptions=o,setSelectionRange:(a,b)=>{focus.selectionStart=a;focus.selectionEnd=b;}};
+globalThis.CSS={escape:s=>s};globalThis.getComputedStyle=()=>({overflowY:'auto'});globalThis.window={scrollX:0,scrollY:450,scrollTo:o=>{window.scrollX=o.left;window.scrollY=o.top;}};
+globalThis.document={body:{},activeElement:focus,querySelectorAll:()=>[list,thread],querySelector:path=>({'#list':list,'#thread-messages':thread,'#focus':focus}[path])};
+const snapshot=captureScrollState();list.scrollTop=0;list.scrollLeft=0;thread.scrollTop=0;window.scrollY=0;rowPosition+=35;
+restoreScrollState(snapshot);assert.equal(list.scrollTop,285);assert.equal(list.scrollLeft,12);assert.equal(thread.scrollTop,90);assert.equal(window.scrollY,450);assert.deepEqual(focusOptions,{preventScroll:true});assert.equal(focus.selectionStart,2);assert.equal(focus.selectionEnd,4);
+thread.scrollTop=0;restoreScrollState(snapshot,{preserveThread:false});assert.equal(thread.scrollTop,0);
+console.log('Scroll preservation passed: page, list anchor across inserted rows, horizontal scroll, focus without scrolling, caret, and deliberate thread changes.');

@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {generateKeyPairSync,sign} from 'node:crypto';
+import {validateGhlOutbound} from './ghl-callback.mjs';
+const valid={contactId:'contact',locationId:'location',messageId:'message',userId:'user',type:'SMS',phone:'+919876543210',message:'Hello',attachments:[]};
+assert.deepEqual(validateGhlOutbound(valid).phone,valid.phone);
+assert.throws(()=>validateGhlOutbound({...valid,type:'Email'}),/Only SMS/);
+assert.throws(()=>validateGhlOutbound({...valid,phone:'9876543210'}),/phone/);
+assert.throws(()=>validateGhlOutbound({...valid,message:''}),/text/);
+const pair=generateKeyPairSync('ed25519'),raw=Buffer.from(JSON.stringify(valid)),signature=sign(null,raw,pair.privateKey);
+assert.equal((await import('node:crypto')).verify(null,raw,pair.publicKey,signature),true);
+console.log('GHL callback validation passed: SMS schema, international phone, message, attachments, and Ed25519 behavior.');

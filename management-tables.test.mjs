@@ -1,0 +1,21 @@
+import {renderWhatsAppContent} from './whatsapp-render.mjs';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync(new URL('./app.js',import.meta.url),'utf8');
+const workspace={numbers:[{id:'a',name:'Live account',phone:'+919000000001',status:'Connected',branches:['b'],responsible:'Owner',connectedAt:'2026-10-15T10:00:00Z',lastActivityAt:'2026-10-16T11:00:00Z'}],branches:[{id:'b',name:'Live branch',city:'Location'}],entities:[],employees:[]};
+const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let handler,opened=[];const context={workspace,esc,date:value=>value,filters:()=>'',filtered:()=>workspace.numbers,heading:()=>'',empty:text=>text,branchLabels:()=> 'Live branch',accountLabel:id=>{const number=workspace.numbers.find(item=>item.id===id);return `${number.name} (${number.phone})`;},document:{addEventListener:(type,fn)=>{if(type==='click')handler=fn;}},closeModal:()=>{},manageNumber:id=>opened.push(['number',id]),branchModal:id=>opened.push(['branch',id]),handleAction:(action,id)=>opened.push([action,id])};
+vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function numbersPage()'),source.indexOf('function render()')),context);
+const numbers=vm.runInContext('numbersPage()',context);context.filtered=()=>workspace.branches;const branches=vm.runInContext('branchesPage()',context);assert.match(numbers,/<table/);assert.match(branches,/<table/);assert.match(numbers,/data-open-number="a"/);assert.match(branches,/data-open-branch="b"/);assert.doesNotMatch(numbers,/number-card/);assert.doesNotMatch(branches,/branch-grid/);assert.equal((numbers.match(/<th>/g)||[]).length,7);assert.match(numbers,/ACCOUNT CONNECTED DATE/);assert.match(numbers,/LAST ACTIVITY DATE/);assert.match(numbers,/2026-10-15T10:00:00Z/);assert.match(numbers,/2026-10-16T11:00:00Z/);assert.equal((branches.match(/<th>/g)||[]).length,4);assert.doesNotMatch(numbers,/View \/ edit|<tbody[\s\S]*<button/);assert.doesNotMatch(branches,/View \/ edit|<tbody[\s\S]*<button/);
+const start=source.indexOf("document.addEventListener('click'");const end=source.indexOf("document.addEventListener('change'",start);vm.runInContext(source.slice(start,end),context);
+const row={dataset:{openNumber:'a'}};handler({target:{closest:selector=>selector==='[data-open-number]'?row:null}});assert.deepEqual(opened.pop(),['number','a']);
+const branchRow={dataset:{openBranch:'b'}};handler({target:{closest:selector=>selector==='[data-open-branch]'?branchRow:null}});assert.deepEqual(opened.pop(),['branch','b']);
+const button={dataset:{action:'manage-number',id:'a'}};handler({target:{closest:selector=>selector==='[data-open-number]'?row:selector==='[data-action]'?button:null}});assert.deepEqual(opened.pop(),['manage-number','a']);
+console.log('Management table tests passed: table rows, details popups, and no action column.');
+
+const {senderDisplayName}=await import('./workspace-model.mjs');const messageContext={renderWhatsAppContent,state:{number:'all'},filterKey:()=> 'all',directoryFilters:{all:{number:'all'}},workspace:{...workspace,contactNames:[]},esc,date:value=>value,empty:text=>text,senderDisplayName};
+vm.createContext(messageContext);vm.runInContext(source.slice(source.indexOf('function messageRows('),source.indexOf('function conversationsPage')),messageContext);
+messageContext.example={kind:'contact',name:'Phone saved name',phone:'+919999999999',savedNames:{a:'Phone saved name'},messages:[{outgoing:false,account:'a',accountIds:['a'],sender_phone:'+919999999999',name:'Public profile name',body:'Message body',created_at:'2026-10-12'}]};
+const html=vm.runInContext('messageRows(example)',messageContext);assert.match(html,/Phone saved name/);assert.doesNotMatch(html,/Sent through|Received by|message-route|919999999999|Public profile name/);
+console.log('Message rendering passed: saved name only, no routing footer or sender phone.');

@@ -1,0 +1,12 @@
+﻿import assert from 'node:assert/strict';
+import {randomBytes} from 'node:crypto';
+import {seal,unseal,validateIntegration,publicIntegration} from './integration-config.mjs';
+import {buildWorkspace,pageFromHash,filterPageRecords} from './workspace-model.mjs';
+const key=randomBytes(32),secret={password:'test-password',tokens:{refresh_token:'test-refresh'}};const encrypted=seal(secret,key);assert.equal(encrypted.includes(secret.password),false);assert.deepEqual(unseal(encrypted,key),secret);assert.throws(()=>unseal(encrypted,randomBytes(32)));
+assert.throws(()=>validateIntegration({name:'',provider:'gmail'}));assert.throws(()=>validateIntegration({name:'Provider',provider:'unknown'}));
+const gmail=validateIntegration({name:'Mailbox',provider:'gmail',config:{email:'test@example.com',authMode:'password',imapHost:'bad.host'},secrets:{password:'test'}});assert.equal(gmail.config.imapHost,'imap.gmail.com');assert.equal(gmail.config.smtpHost,'smtp.gmail.com');
+const microsoft=validateIntegration({name:'Microsoft',provider:'microsoft',config:{email:'test@example.com',clientId:'00000000-0000-0000-0000-000000000000',authMode:'password'},secrets:{clientSecret:'test'}});assert.equal(microsoft.config.authMode,'oauth');assert.equal(microsoft.config.tenant,'common');
+const calls=validateIntegration({name:'Calls',provider:'plivo',config:{authId:'MA12345678901234567890',phone:'+919999999999'},secrets:{authToken:'test'}});assert.equal(calls.kind,'calls');assert.throws(()=>validateIntegration({...calls,config:{...calls.config,phone:'999'}}));
+const row={id:'test',...gmail,secrets:encrypted,status:'Configured'};const publicRow=publicIntegration(row);assert.equal(publicRow.secrets,undefined);assert.equal(JSON.stringify(publicRow).includes('test-password'),false);assert.equal(publicRow.config.password,undefined);
+const model=buildWorkspace({integrations:[publicRow],channelRecords:[{id:'record',kind:'email'}]});assert.equal(model.integrations.length,1);assert.equal(model.channelRecords.length,1);assert.equal(filterPageRecords(model,'integrations',{provider:'gmail'}).length,1);assert.equal(pageFromHash('#integrations'),'integrations');
+console.log('Integration tests passed: credential encryption/tamper rejection, provider validation, Microsoft OAuth, Plivo phone format, redacted API records, integration route and filtering.');

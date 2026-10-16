@@ -1,0 +1,9 @@
+﻿import assert from 'node:assert/strict';
+import {validateEmployee} from './employees.mjs';
+import {dialXml} from './voice.mjs';
+import {buildWorkspace,pageFromHash,employeeNames,filterPageRecords} from './workspace-model.mjs';
+assert.throws(()=>validateEmployee({name:'',branches:['branch']}));assert.throws(()=>validateEmployee({name:'Employee',branches:[]}));
+const staff=validateEmployee({name:' Employee ',branches:['b1','b1','b2'],whatsapp:['wa1','wa2'],plivoNumbers:['p1','p2'],emails:['mail1','mail2']});assert.deepEqual(staff.branches,['b1','b2']);assert.equal(staff.whatsapp.length,2);assert.equal(staff.plivoNumbers.length,2);assert.equal(staff.emails.length,2);
+const workspace=buildWorkspace({numbers:[{id:'wa1',phone:'+919999999999',name:'Account',branches:[],responsible:'Old text'}],employees:[{id:'employee',...staff}],branches:[{id:'b1',name:'Branch'}]});assert.equal(workspace.numbers[0].responsible,'Employee');assert.deepEqual(workspace.numbers[0].branches,['b1','b2']);assert.equal(workspace.numbers[0].employeeId,'employee');assert.equal(filterPageRecords(workspace,'employees',{branch:'b1'}).length,1);assert.equal(pageFromHash('#employees'),'employees');assert.deepEqual(employeeNames({accountIds:['wa1']},workspace),['Employee']);
+const xml=dialXml({from:'+919999999999',to:'+918888888888',callback:'https://example.test/recording?intent=abc&other=value'});assert.match(xml,/recordSession="true"/);assert.match(xml,/startOnDialAnswer="true"/);assert.match(xml,/callerId="\+919999999999"/);assert.match(xml,/intent=abc&amp;other=value/);assert.throws(()=>dialXml({from:'invalid',to:'sip:attacker',callback:'https://example.test'}));
+console.log('Employee/voice tests passed: multi-channel assignments, branch inheritance, employee ownership labels, voice-only recording XML and dial-number validation.');
